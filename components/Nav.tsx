@@ -21,20 +21,22 @@ export default function Nav() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-sm">
-      <div className="mx-auto max-w-screen-xl px-4 h-14 flex items-center gap-6">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight select-none">
-          <Image src="/logo.png" alt="Queen's Gambit" width={36} height={36} className="h-9 w-auto" />
-          <span>Queen&apos;s Gambit</span>
+      <div className="mx-auto max-w-screen-xl px-4 h-14 flex items-center gap-4">
+        <Link href="/" className="flex items-center gap-2.5 select-none">
+          <Image src="/logo.png" alt="Queen's Gambit" width={52} height={52} className="h-12 w-auto" />
+          <span className="font-semibold text-sm tracking-tight leading-tight">Queen&apos;s<br />Gambit</span>
         </Link>
 
-        <nav className="flex items-center gap-1 ml-2">
+        <nav className="flex items-center gap-2 ml-2">
           {links.map(l => (
             <Link
               key={l.href}
               href={l.href}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${
-                pathname.startsWith(l.href) ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'
-              }`}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors
+                ${pathname.startsWith(l.href)
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground'
+                }`}
             >
               {l.label}
             </Link>
