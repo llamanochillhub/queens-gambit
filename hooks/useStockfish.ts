@@ -11,7 +11,7 @@ export interface LineEval {
 }
 
 export interface EngineEval {
-  lines: LineEval[];   // up to 5 lines
+  lines: LineEval[];
   depth: number;
   bestMove: string;
 }
@@ -26,7 +26,9 @@ export function useStockfish(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
-    const worker = new Worker('/stockfish.worker.js');
+    // Load stockfish.js directly as the worker — it self-initialises when the
+    // hash contains ",worker". Commands sent before wasm loads are queued internally.
+    const worker = new Worker('/stockfish.js#/stockfish.wasm,worker');
     workerRef.current = worker;
 
     worker.onmessage = (e: MessageEvent<string>) => {
@@ -39,10 +41,10 @@ export function useStockfish(enabled: boolean) {
       } else if (line === 'readyok') {
         setIsReady(true);
         if (pendingFen.current) {
-          startAnalysis(pendingFen.current, worker);
+          doAnalyze(pendingFen.current, worker);
           pendingFen.current = null;
         }
-      } else if (line.startsWith('info') && line.includes('score') && line.includes(' pv ')) {
+      } else if (line.startsWith('info') && line.includes(' score ') && line.includes(' pv ')) {
         const depthMatch = line.match(/\bdepth (\d+)/);
         const multipvMatch = line.match(/\bmultipv (\d+)/);
         const scoreMatch = line.match(/\bscore cp (-?\d+)/);
@@ -50,10 +52,11 @@ export function useStockfish(enabled: boolean) {
         const pvMatch = line.match(/ pv (.+)/);
 
         const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
-        const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
         if (depth < 5) return;
 
+        const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
         const pv = pvMatch ? pvMatch[1].trim().split(' ') : [];
+
         const lineEval: LineEval = {
           multipv,
           score: scoreMatch ? parseInt(scoreMatch[1]) : null,
@@ -64,15 +67,9 @@ export function useStockfish(enabled: boolean) {
 
         linesRef.current = { ...linesRef.current, [multipv]: lineEval };
 
-        // Update state when we have a full set (multipv 1 always present)
         if (multipv === 1) {
-          const lines = Object.values(linesRef.current)
-            .sort((a, b) => a.multipv - b.multipv);
-          setEvaluation({
-            lines,
-            depth,
-            bestMove: pv[0] ?? '',
-          });
+          const lines = Object.values(linesRef.current).sort((a, b) => a.multipv - b.multipv);
+          setEvaluation({ lines, depth, bestMove: pv[0] ?? '' });
         }
       } else if (line.startsWith('bestmove')) {
         const move = line.split(' ')[1];
@@ -84,8 +81,11 @@ export function useStockfish(enabled: boolean) {
       }
     };
 
+    // Send uci immediately — queued internally until wasm is ready
+    worker.postMessage('uci');
+
     return () => {
-      worker.postMessage('stop');
+      worker.postMessage('quit');
       worker.terminate();
       workerRef.current = null;
       setIsReady(false);
@@ -93,12 +93,12 @@ export function useStockfish(enabled: boolean) {
     };
   }, [enabled]);
 
-  const startAnalysis = useCallback((fen: string, worker: Worker) => {
+  const doAnalyze = (fen: string, worker: Worker) => {
     linesRef.current = {};
     worker.postMessage('stop');
     worker.postMessage(`position fen ${fen}`);
     worker.postMessage('go infinite');
-  }, []);
+  };
 
   const analyze = useCallback((fen: string) => {
     const worker = workerRef.current;
@@ -108,8 +108,8 @@ export function useStockfish(enabled: boolean) {
       return;
     }
     setEvaluation(null);
-    startAnalysis(fen, worker);
-  }, [isReady, startAnalysis]);
+    doAnalyze(fen, worker);
+  }, [isReady]);
 
   const stop = useCallback(() => {
     workerRef.current?.postMessage('stop');
