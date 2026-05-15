@@ -55,12 +55,13 @@ function MoveSequence({
 
     const isWhite = node.ply % 2 === 1;
     const moveNum = Math.ceil(node.ply / 2);
-    const isActive = cur === currentId;
+    const nodeId = cur; // capture value before cur advances — closures must not share the variable
+    const isActive = nodeId === currentId;
 
     // Move number
     if (isWhite || needsNum) {
       elements.push(
-        <span key={`num-${cur}`} className="text-muted-foreground text-xs">
+        <span key={`num-${nodeId}`} className="text-muted-foreground text-xs">
           {isWhite ? `${moveNum}.` : `${moveNum}...`}
         </span>
       );
@@ -69,9 +70,9 @@ function MoveSequence({
     // Move button
     elements.push(
       <button
-        key={cur}
+        key={nodeId}
         data-active={isActive ? 'true' : 'false'}
-        onClick={() => onSelect(cur!)}
+        onClick={() => onSelect(nodeId)}
         className="px-1.5 py-0.5 rounded transition-colors hover:bg-accent data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
       >
         {node.san}
