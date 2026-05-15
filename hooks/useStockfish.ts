@@ -20,20 +20,36 @@ export function useStockfish(enabled: boolean) {
   const workerRef = useRef<Worker | null>(null);
   const [evaluation, setEvaluation] = useState<EngineEval | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
   const pendingFen = useRef<string | null>(null);
+  const isRunning = useRef(false);
   const linesRef = useRef<Record<number, LineEval>>({});
 
   useEffect(() => {
     if (!enabled) return;
 
-    // Load stockfish.js directly as the worker — it self-initialises when the
-    // hash contains ",worker". Commands sent before wasm loads are queued internally.
-    const worker = new Worker('/stockfish.js#/stockfish.wasm,worker');
+    const worker = new Worker('/stockfish.js');
     workerRef.current = worker;
+
+    const log = (msg: string) => setDebugLog(prev => [...prev.slice(-20), msg]);
+
+    const startAnalysis = (fen: string) => {
+      linesRef.current = {};
+      worker.postMessage(`position fen ${fen}`);
+      worker.postMessage('go infinite');
+      isRunning.current = true;
+    };
+
+    worker.onerror = (err) => {
+      log('ERROR: ' + err.message);
+      isRunning.current = false;
+    };
 
     worker.onmessage = (e: MessageEvent<string>) => {
       const line = e.data;
       if (!line || typeof line !== 'string') return;
+
+      if (!line.startsWith('info')) log(line.slice(0, 80));
 
       if (line === 'uciok') {
         worker.postMessage('setoption name MultiPV value 5');
@@ -41,7 +57,7 @@ export function useStockfish(enabled: boolean) {
       } else if (line === 'readyok') {
         setIsReady(true);
         if (pendingFen.current) {
-          doAnalyze(pendingFen.current, worker);
+          startAnalysis(pendingFen.current);
           pendingFen.current = null;
         }
       } else if (line.startsWith('info') && line.includes(' score ') && line.includes(' pv ')) {
@@ -72,16 +88,21 @@ export function useStockfish(enabled: boolean) {
           setEvaluation({ lines, depth, bestMove: pv[0] ?? '' });
         }
       } else if (line.startsWith('bestmove')) {
+        isRunning.current = false;
         const move = line.split(' ')[1];
         if (move && move !== '(none)') {
           setEvaluation(prev =>
             prev ? { ...prev, bestMove: move } : { lines: [], depth: 0, bestMove: move }
           );
         }
+        // If analyze() was called while engine was running, start it now
+        if (pendingFen.current) {
+          startAnalysis(pendingFen.current);
+          pendingFen.current = null;
+        }
       }
     };
 
-    // Send uci immediately — queued internally until wasm is ready
     worker.postMessage('uci');
 
     return () => {
@@ -90,15 +111,9 @@ export function useStockfish(enabled: boolean) {
       workerRef.current = null;
       setIsReady(false);
       setEvaluation(null);
+      isRunning.current = false;
     };
   }, [enabled]);
-
-  const doAnalyze = (fen: string, worker: Worker) => {
-    linesRef.current = {};
-    worker.postMessage('stop');
-    worker.postMessage(`position fen ${fen}`);
-    worker.postMessage('go infinite');
-  };
 
   const analyze = useCallback((fen: string) => {
     const worker = workerRef.current;
@@ -108,12 +123,24 @@ export function useStockfish(enabled: boolean) {
       return;
     }
     setEvaluation(null);
-    doAnalyze(fen, worker);
+    if (isRunning.current) {
+      // Queue the new FEN and stop the engine; startAnalysis fires in the bestmove handler
+      pendingFen.current = fen;
+      worker.postMessage('stop');
+    } else {
+      linesRef.current = {};
+      worker.postMessage(`position fen ${fen}`);
+      worker.postMessage('go infinite');
+      isRunning.current = true;
+    }
   }, [isReady]);
 
   const stop = useCallback(() => {
-    workerRef.current?.postMessage('stop');
+    if (isRunning.current) {
+      workerRef.current?.postMessage('stop');
+      isRunning.current = false;
+    }
   }, []);
 
-  return { evaluation, isReady, analyze, stop };
+  return { evaluation, isReady, analyze, stop, debugLog };
 }
