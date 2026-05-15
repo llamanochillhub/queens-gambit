@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { buttonVariants } from '@/components/ui/button';
 import { ArrowRight, Upload, Cpu, Puzzle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,7 +9,9 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-20 text-center">
       {/* Hero */}
       <div className="mb-12 space-y-4 max-w-2xl">
-        <div className="text-7xl mb-6 select-none">♛</div>
+        <div className="mb-6 flex justify-center select-none">
+          <Image src="/logo.png" alt="Queen's Gambit" width={120} height={120} className="h-28 w-auto" />
+        </div>
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
           Your personal chess workbench
         </h1>
