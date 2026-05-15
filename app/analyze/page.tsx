@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
@@ -61,22 +61,21 @@ export default function AnalyzePage() {
   // Full game tree stored as an array of UCI moves
   const [uciMoves, setUciMoves] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1); // -1 = start
-  const [moves, setMoves] = useState<MoveNode[]>([]);
   const [pgnHeaders, setPgnHeaders] = useState<Record<string, string>>({});
   const [flipped, setFlipped] = useState(false);
   const [engineOn, setEngineOn] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const moveListRef = useRef<HTMLDivElement>(null);
 
-  // Rebuild moves whenever uciMoves changes
-  useEffect(() => {
+  // Compute moves synchronously so currentFen is never stale
+  const moves = useMemo<MoveNode[]>(() => {
     const chess = new Chess();
-    const verbose: any[] = [];
+    const nodes: MoveNode[] = [];
     for (const uci of uciMoves) {
       const m = chess.move({ from: uci.slice(0, 2) as any, to: uci.slice(2, 4) as any, promotion: uci[4] as any });
-      if (m) verbose.push(m);
+      if (m) nodes.push({ fen: chess.fen(), san: m.san, uci });
     }
-    setMoves(buildMoveList(verbose));
+    return nodes;
   }, [uciMoves]);
 
   const currentFen = currentIndex === -1 ? START_FEN : (moves[currentIndex]?.fen ?? START_FEN);
@@ -144,7 +143,6 @@ export default function AnalyzePage() {
 
   const handleReset = () => {
     setUciMoves([]);
-    setMoves([]);
     setCurrentIndex(-1);
     setPgnHeaders({});
   };
