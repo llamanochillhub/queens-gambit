@@ -184,11 +184,11 @@ export default function AnalyzePage() {
             <Button size="icon" variant="ghost" onClick={() => setFlipped(f => !f)} title="Flip board"><FlipVertical className="h-4 w-4" /></Button>
             <Button size="icon" variant={engineOn ? 'default' : 'ghost'} onClick={() => setEngineOn(e => !e)} title="Toggle engine"><Cpu className="h-4 w-4" /></Button>
           </div>
-          <div className="flex items-center gap-1 flex-wrap justify-center">
-            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className="gap-1 h-7 text-xs px-2"><Upload className="h-3 w-3" />Import</Button>
-            <Button size="sm" variant="outline" onClick={exportPGN} className="gap-1 h-7 text-xs px-2"><Download className="h-3 w-3" />Export</Button>
-            <Button size="sm" variant="outline" onClick={copyPGN} className="gap-1 h-7 text-xs px-2"><Clipboard className="h-3 w-3" />Copy</Button>
-            <Button size="sm" variant="outline" onClick={handleReset} className="gap-1 h-7 text-xs px-2"><RotateCcw className="h-3 w-3" />New</Button>
+          <div className="flex items-center gap-1.5 justify-center">
+            <Button size="icon" variant="outline" onClick={() => setImportOpen(true)} title="Import PGN" className="h-8 w-8 rounded-full"><Upload className="h-3.5 w-3.5" /></Button>
+            <Button size="icon" variant="outline" onClick={exportPGN} title="Export PGN" className="h-8 w-8 rounded-full"><Download className="h-3.5 w-3.5" /></Button>
+            <Button size="icon" variant="outline" onClick={copyPGN} title="Copy PGN" className="h-8 w-8 rounded-full"><Clipboard className="h-3.5 w-3.5" /></Button>
+            <Button size="icon" variant="outline" onClick={handleReset} title="New game" className="h-8 w-8 rounded-full"><RotateCcw className="h-3.5 w-3.5" /></Button>
           </div>
         </div>
       </div>

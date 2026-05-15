@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, ChevronRight } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Nav() {
@@ -22,7 +23,7 @@ export default function Nav() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="mx-auto max-w-screen-xl px-4 h-14 flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight select-none">
-          <span className="text-2xl">♛</span>
+          <Image src="/logo.png" alt="Queen's Gambit" width={36} height={36} className="h-9 w-auto" />
           <span>Queen&apos;s Gambit</span>
         </Link>
 
