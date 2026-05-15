@@ -2,12 +2,18 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+export interface LineEval {
+  multipv: number;
+  score: number | null;
+  mate: number | null;
+  depth: number;
+  pv: string[];
+}
+
 export interface EngineEval {
-  score: number | null; // centipawns, null if mate
-  mate: number | null;  // moves to mate
+  lines: LineEval[];   // up to 5 lines
   depth: number;
   bestMove: string;
-  pv: string[];         // principal variation in UCI
 }
 
 export function useStockfish(enabled: boolean) {
@@ -15,6 +21,7 @@ export function useStockfish(enabled: boolean) {
   const [evaluation, setEvaluation] = useState<EngineEval | null>(null);
   const [isReady, setIsReady] = useState(false);
   const pendingFen = useRef<string | null>(null);
+  const linesRef = useRef<Record<number, LineEval>>({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -22,67 +29,87 @@ export function useStockfish(enabled: boolean) {
     const worker = new Worker('/stockfish.worker.js');
     workerRef.current = worker;
 
-    worker.onmessage = (e) => {
-      const line: string = typeof e.data === 'string' ? e.data : e.data?.line;
-      if (!line) return;
+    worker.onmessage = (e: MessageEvent<string>) => {
+      const line = e.data;
+      if (!line || typeof line !== 'string') return;
 
       if (line === 'uciok') {
+        worker.postMessage('setoption name MultiPV value 5');
         worker.postMessage('isready');
       } else if (line === 'readyok') {
         setIsReady(true);
         if (pendingFen.current) {
-          analyzePosition(pendingFen.current, worker);
+          startAnalysis(pendingFen.current, worker);
           pendingFen.current = null;
         }
-      } else if (line.startsWith('info') && line.includes('score') && line.includes('pv')) {
-        const depthMatch = line.match(/depth (\d+)/);
-        const scoreMatch = line.match(/score cp (-?\d+)/);
-        const mateMatch = line.match(/score mate (-?\d+)/);
+      } else if (line.startsWith('info') && line.includes('score') && line.includes(' pv ')) {
+        const depthMatch = line.match(/\bdepth (\d+)/);
+        const multipvMatch = line.match(/\bmultipv (\d+)/);
+        const scoreMatch = line.match(/\bscore cp (-?\d+)/);
+        const mateMatch = line.match(/\bscore mate (-?\d+)/);
         const pvMatch = line.match(/ pv (.+)/);
+
         const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
-        if (depth < 6) return; // skip shallow results
+        const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
+        if (depth < 5) return;
+
         const pv = pvMatch ? pvMatch[1].trim().split(' ') : [];
-        setEvaluation({
+        const lineEval: LineEval = {
+          multipv,
           score: scoreMatch ? parseInt(scoreMatch[1]) : null,
           mate: mateMatch ? parseInt(mateMatch[1]) : null,
           depth,
-          bestMove: pv[0] ?? '',
           pv,
-        });
+        };
+
+        linesRef.current = { ...linesRef.current, [multipv]: lineEval };
+
+        // Update state when we have a full set (multipv 1 always present)
+        if (multipv === 1) {
+          const lines = Object.values(linesRef.current)
+            .sort((a, b) => a.multipv - b.multipv);
+          setEvaluation({
+            lines,
+            depth,
+            bestMove: pv[0] ?? '',
+          });
+        }
       } else if (line.startsWith('bestmove')) {
-        const parts = line.split(' ');
-        const move = parts[1];
+        const move = line.split(' ')[1];
         if (move && move !== '(none)') {
           setEvaluation(prev =>
-            prev ? { ...prev, bestMove: move } : { score: null, mate: null, depth: 0, bestMove: move, pv: [move] }
+            prev ? { ...prev, bestMove: move } : { lines: [], depth: 0, bestMove: move }
           );
         }
       }
     };
 
     return () => {
+      worker.postMessage('stop');
       worker.terminate();
       workerRef.current = null;
       setIsReady(false);
+      setEvaluation(null);
     };
   }, [enabled]);
 
-  const analyzePosition = useCallback((fen: string, worker?: Worker) => {
-    const w = worker ?? workerRef.current;
-    if (!w) return;
-    w.postMessage('stop');
-    w.postMessage(`position fen ${fen}`);
-    w.postMessage('go depth 20');
+  const startAnalysis = useCallback((fen: string, worker: Worker) => {
+    linesRef.current = {};
+    worker.postMessage('stop');
+    worker.postMessage(`position fen ${fen}`);
+    worker.postMessage('go infinite');
   }, []);
 
   const analyze = useCallback((fen: string) => {
+    const worker = workerRef.current;
+    if (!worker) return;
     if (!isReady) {
       pendingFen.current = fen;
       return;
     }
     setEvaluation(null);
-    analyzePosition(fen);
-  }, [isReady, analyzePosition]);
+    startAnalysis(fen, worker);
+  }, [isReady, startAnalysis]);
 
   const stop = useCallback(() => {
     workerRef.current?.postMessage('stop');
